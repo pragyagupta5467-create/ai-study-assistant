@@ -28,20 +28,17 @@ export function App() {
     return localStorage.getItem('study_ai_theme') || 'light';
   });
 
-  // User Auth State
+  // User Auth State (null = guest mode, non-blocking)
   const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('study_ai_user');
-    return saved
-      ? JSON.parse(saved)
-      : {
-          name: 'Pragya',
-          email: 'pragya@studyai.edu',
-          role: 'Student',
-          avatar: 'PG'
-        };
+    try {
+      const saved = localStorage.getItem('study_ai_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
   });
 
-  // Modals
+  // Modals (all closed by default on initial page load)
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('login');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);

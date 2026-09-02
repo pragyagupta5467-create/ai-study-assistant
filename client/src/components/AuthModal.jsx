@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Sparkles,
   Lock,
@@ -11,7 +11,8 @@ import {
   CheckCircle2,
   GraduationCap,
   ShieldCheck,
-  Zap
+  Zap,
+  HelpCircle
 } from 'lucide-react';
 
 export function AuthModal({
@@ -19,15 +20,24 @@ export function AuthModal({
   onClose,
   onLoginSuccess,
   onRegisterSuccess,
-  initialMode = 'login'
+  initialMode = 'login',
+  onShowToast
 }) {
   const [mode, setMode] = useState(initialMode); // 'login' | 'register'
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState('Student');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  // Sync mode when initialMode prop changes
+  useEffect(() => {
+    setMode(initialMode);
+    setErrorMessage('');
+  }, [initialMode, isOpen]);
 
   if (!isOpen) return null;
 
@@ -45,22 +55,17 @@ export function AuthModal({
       return;
     }
 
-    if (mode === 'register' && !name.trim()) {
-      setErrorMessage('Please enter your full name.');
-      return;
-    }
+    if (mode === 'register') {
+      if (!name.trim()) {
+        setErrorMessage('Please enter your full name.');
+        return;
+      }
+      if (password !== confirmPassword) {
+        setErrorMessage('Passwords do not match. Please verify your password.');
+        return;
+      }
 
-    if (mode === 'login') {
-      // Login flow
-      const user = {
-        name: name.trim() || email.split('@')[0],
-        email: email.trim(),
-        role: role || 'Student',
-        avatar: (name.trim() || email.split('@')[0]).slice(0, 2).toUpperCase()
-      };
-      onLoginSuccess(user);
-    } else {
-      // Register flow
+      // Register Success
       const user = {
         name: name.trim(),
         email: email.trim(),
@@ -68,6 +73,15 @@ export function AuthModal({
         avatar: name.trim().slice(0, 2).toUpperCase()
       };
       onRegisterSuccess(user);
+    } else {
+      // Login Success
+      const user = {
+        name: name.trim() || email.split('@')[0],
+        email: email.trim(),
+        role: role || 'Student',
+        avatar: (name.trim() || email.split('@')[0]).slice(0, 2).toUpperCase()
+      };
+      onLoginSuccess(user);
     }
 
     onClose();
@@ -84,11 +98,26 @@ export function AuthModal({
     onClose();
   };
 
+  const handleForgotPassword = (e) => {
+    e.preventDefault();
+    setErrorMessage('');
+    if (email && email.includes('@')) {
+      alert(`Password reset instructions sent to ${email}`);
+    } else {
+      setErrorMessage('Please enter your email address above, then click Forgot Password.');
+    }
+  };
+
   return (
     <div className="auth-modal-backdrop" onClick={onClose}>
       <div className="auth-modal-card" onClick={(e) => e.stopPropagation()}>
-        {/* Close button */}
-        <button className="auth-close-btn" onClick={onClose} aria-label="Close modal">
+        {/* Close Button */}
+        <button
+          className="auth-close-btn"
+          onClick={onClose}
+          aria-label="Close modal"
+          title="Close (Esc)"
+        >
           <X size={18} />
         </button>
 
@@ -98,12 +127,12 @@ export function AuthModal({
             <Sparkles size={20} />
           </div>
           <h2 className="auth-title">
-            {mode === 'login' ? 'Welcome back to StudyAI' : 'Create your StudyAI account'}
+            {mode === 'login' ? 'Sign in to StudyAI' : 'Create your StudyAI account'}
           </h2>
           <p className="auth-subtitle">
             {mode === 'login'
-              ? 'Sign in to access your study decks, streak, and quiz analytics.'
-              : 'Join thousands of students learning smarter with structured AI.'}
+              ? 'Access your saved decks, study streak, and performance metrics.'
+              : 'Join StudyAI to turn notes into interactive flashcards and quizzes.'}
           </p>
         </div>
 
@@ -131,7 +160,7 @@ export function AuthModal({
           </button>
         </div>
 
-        {/* Quick Demo Login Preset Button */}
+        {/* Quick Demo Preset Button */}
         <div className="quick-demo-login-box">
           <button
             type="button"
@@ -168,7 +197,7 @@ export function AuthModal({
                   placeholder="e.g. Pragya Gupta"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  autoFocus={mode === 'register'}
+                  autoFocus
                 />
               </div>
             </div>
@@ -192,13 +221,24 @@ export function AuthModal({
 
           {/* Password Field */}
           <div className="auth-field-group">
-            <label className="auth-label">Password</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label className="auth-label">Password</label>
+              {mode === 'login' && (
+                <button
+                  type="button"
+                  className="auth-forgot-link"
+                  onClick={handleForgotPassword}
+                >
+                  Forgot password?
+                </button>
+              )}
+            </div>
             <div className="auth-input-wrap">
               <Lock size={16} className="auth-input-icon" />
               <input
                 type={showPassword ? 'text' : 'password'}
                 className="auth-input"
-                placeholder="••••••••"
+                placeholder="At least 6 characters"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -213,10 +253,35 @@ export function AuthModal({
             </div>
           </div>
 
+          {/* Confirm Password Field (Register Mode Only) */}
+          {mode === 'register' && (
+            <div className="auth-field-group">
+              <label className="auth-label">Confirm Password</label>
+              <div className="auth-input-wrap">
+                <Lock size={16} className="auth-input-icon" />
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  className="auth-input"
+                  placeholder="Re-enter your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Role Selection (Register Mode Only) */}
           {mode === 'register' && (
             <div className="auth-field-group">
-              <label className="auth-label">Study Role</label>
+              <label className="auth-label">Study Focus</label>
               <div className="role-pills-grid">
                 {['Student', 'Engineering', 'Medical', 'Self-Learner'].map((r) => (
                   <button
@@ -235,7 +300,7 @@ export function AuthModal({
 
           {/* Submit Button */}
           <button type="submit" className="btn-auth-submit">
-            <span>{mode === 'login' ? 'Sign In to StudyAI' : 'Create Free Account'}</span>
+            <span>{mode === 'login' ? 'Sign In' : 'Create Free Account'}</span>
             <ArrowRight size={17} />
           </button>
         </form>
