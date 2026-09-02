@@ -35,6 +35,7 @@ export function Sidebar({
   recentTopics = [],
   onSelectTopic,
   mistakesCount = 0,
+  streakDays = 0,
   theme,
   onToggleTheme,
   isOpen,
@@ -136,28 +137,34 @@ export function Sidebar({
             })}
           </nav>
 
-          {/* Recent Topics Section */}
+          {/* User's Study Topics Section */}
           <div className="sidebar-section-title" style={{ marginTop: '1.5rem' }}>
             <span>YOUR STUDY</span>
           </div>
 
           <div className="sidebar-topics-list">
-            {recentTopics.map((topic) => (
-              <button
-                key={topic.id}
-                className="sidebar-topic-item"
-                onClick={() => {
-                  onSelectTopic(topic);
-                  if (onCloseMobile) onCloseMobile();
-                }}
-              >
-                <div className="topic-item-dot" />
-                <span className="topic-item-name" title={topic.title}>
-                  {topic.title}
-                </span>
-                <ChevronRight size={14} className="topic-item-arrow" />
-              </button>
-            ))}
+            {recentTopics.length > 0 ? (
+              recentTopics.slice(0, 6).map((topic) => (
+                <button
+                  key={topic.id}
+                  className="sidebar-topic-item"
+                  onClick={() => {
+                    onSelectTopic(topic);
+                    if (onCloseMobile) onCloseMobile();
+                  }}
+                >
+                  <div className="topic-item-dot" />
+                  <span className="topic-item-name" title={topic.title}>
+                    {topic.title}
+                  </span>
+                  <ChevronRight size={14} className="topic-item-arrow" />
+                </button>
+              ))
+            ) : (
+              <div className="sidebar-empty-topics-hint">
+                <span>No topics yet</span>
+              </div>
+            )}
           </div>
 
           {/* Daily Streak Widget */}
@@ -166,8 +173,14 @@ export function Sidebar({
               <Flame size={18} />
             </div>
             <div className="streak-info">
-              <div className="streak-title">7-Day Study Streak</div>
-              <div className="streak-sub">Keep going for 12 days record!</div>
+              <div className="streak-title">
+                {streakDays > 0 ? `${streakDays}-Day Study Streak` : 'Study Streak'}
+              </div>
+              <div className="streak-sub">
+                {streakDays > 0
+                  ? 'Keep studying daily to maintain your record!'
+                  : 'Complete a study session to start your streak!'}
+              </div>
             </div>
           </div>
         </div>
@@ -175,12 +188,12 @@ export function Sidebar({
         {/* User Profile Footer */}
         <div className="sidebar-footer">
           {currentUser ? (
-            <div className="user-profile-widget">
-              <div className="user-avatar" onClick={() => onNavigate('settings')}>
-                <span>{currentUser.avatar || 'PG'}</span>
+            <div className="user-profile-widget" onClick={() => onNavigate('settings')}>
+              <div className="user-avatar">
+                <span>{currentUser.avatar || currentUser.name.slice(0, 2).toUpperCase()}</span>
                 <div className="user-online-dot" />
               </div>
-              <div className="user-details" onClick={() => onNavigate('settings')}>
+              <div className="user-details">
                 <div className="user-name">{currentUser.name}</div>
                 <div className="user-role">{currentUser.role || 'Student'}</div>
               </div>

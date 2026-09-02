@@ -8,12 +8,10 @@ import {
   ArrowRight,
   Eye,
   EyeOff,
-  CheckCircle2,
   GraduationCap,
-  ShieldCheck,
-  Zap,
-  HelpCircle
+  Zap
 } from 'lucide-react';
+import { registerUser, authenticateUser } from '../services/userService';
 
 export function AuthModal({
   isOpen,
@@ -33,7 +31,7 @@ export function AuthModal({
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Sync mode when initialMode prop changes
+  // Sync mode when initialMode changes
   useEffect(() => {
     setMode(initialMode);
     setErrorMessage('');
@@ -55,47 +53,36 @@ export function AuthModal({
       return;
     }
 
-    if (mode === 'register') {
-      if (!name.trim()) {
-        setErrorMessage('Please enter your full name.');
-        return;
-      }
-      if (password !== confirmPassword) {
-        setErrorMessage('Passwords do not match. Please verify your password.');
-        return;
+    try {
+      if (mode === 'register') {
+        if (!name.trim()) {
+          setErrorMessage('Please enter your full name.');
+          return;
+        }
+        if (password !== confirmPassword) {
+          setErrorMessage('Passwords do not match. Please verify your password.');
+          return;
+        }
+
+        // Register user via userService
+        const newUser = registerUser({
+          name: name.trim(),
+          email: email.trim(),
+          password,
+          role
+        });
+
+        onRegisterSuccess(newUser);
+      } else {
+        // Authenticate via userService
+        const loggedInUser = authenticateUser(email.trim(), password);
+        onLoginSuccess(loggedInUser);
       }
 
-      // Register Success
-      const user = {
-        name: name.trim(),
-        email: email.trim(),
-        role,
-        avatar: name.trim().slice(0, 2).toUpperCase()
-      };
-      onRegisterSuccess(user);
-    } else {
-      // Login Success
-      const user = {
-        name: name.trim() || email.split('@')[0],
-        email: email.trim(),
-        role: role || 'Student',
-        avatar: (name.trim() || email.split('@')[0]).slice(0, 2).toUpperCase()
-      };
-      onLoginSuccess(user);
+      onClose();
+    } catch (err) {
+      setErrorMessage(err.message || 'Authentication failed. Please check your credentials.');
     }
-
-    onClose();
-  };
-
-  const handleQuickDemoLogin = () => {
-    const demoUser = {
-      name: 'Pragya',
-      email: 'pragya@studyai.edu',
-      role: 'Student',
-      avatar: 'PG'
-    };
-    onLoginSuccess(demoUser);
-    onClose();
   };
 
   const handleForgotPassword = (e) => {
@@ -131,8 +118,8 @@ export function AuthModal({
           </h2>
           <p className="auth-subtitle">
             {mode === 'login'
-              ? 'Access your saved decks, study streak, and performance metrics.'
-              : 'Join StudyAI to turn notes into interactive flashcards and quizzes.'}
+              ? 'Access your private study decks, streak, and quiz scores.'
+              : 'Join StudyAI to turn your notes into interactive flashcards and quizzes.'}
           </p>
         </div>
 
@@ -160,22 +147,6 @@ export function AuthModal({
           </button>
         </div>
 
-        {/* Quick Demo Preset Button */}
-        <div className="quick-demo-login-box">
-          <button
-            type="button"
-            className="btn-quick-demo"
-            onClick={handleQuickDemoLogin}
-          >
-            <Zap size={15} />
-            <span>1-Click Demo Login as <strong>Pragya (Student)</strong></span>
-          </button>
-        </div>
-
-        <div className="auth-divider">
-          <span>or continue with email</span>
-        </div>
-
         {/* Error Alert */}
         {errorMessage && (
           <div className="auth-error-alert">
@@ -194,7 +165,7 @@ export function AuthModal({
                 <input
                   type="text"
                   className="auth-input"
-                  placeholder="e.g. Pragya Gupta"
+                  placeholder="e.g. Rahul Sharma"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   autoFocus

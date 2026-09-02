@@ -17,10 +17,11 @@ import { SearchModal } from './components/SearchModal';
 import { ErrorState } from './components/ErrorState';
 import { generateStudyMaterial, cancelActiveGeneration } from './services/api';
 import {
-  INITIAL_STATS,
-  INITIAL_TOPICS,
-  INITIAL_MISTAKES
-} from './data/mockData';
+  getCurrentUser,
+  getUserData,
+  saveUserData,
+  logoutUser
+} from './services/userService';
 
 export function App() {
   // Theme State
@@ -28,44 +29,40 @@ export function App() {
     return localStorage.getItem('study_ai_theme') || 'light';
   });
 
-  // User Auth State (null = guest mode, non-blocking)
-  const [currentUser, setCurrentUser] = useState(() => {
-    try {
-      const saved = localStorage.getItem('study_ai_user');
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
+  // User Auth State (null = Guest mode with isolated storage)
+  const [currentUser, setCurrentUser] = useState(() => getCurrentUser());
 
-  // Modals (all closed by default on initial page load)
+  // Active Main View
+  const [activeView, setActiveView] = useState('dashboard');
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState('login');
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
 
-  // Active Main View: 'dashboard' | 'assistant' | 'session-overview' | 'flashcards' | 'quiz' | 'quiz-results' | 'wrong-answers' | 'progress' | 'settings' | 'loading' | 'error'
-  const [activeView, setActiveView] = useState('dashboard');
-
-  // Persistent App State
-  const [stats, setStats] = useState(() => {
-    const saved = localStorage.getItem('study_ai_stats');
-    return saved ? JSON.parse(saved) : INITIAL_STATS;
+  // Per-User Dynamic Study Data State
+  const [topics, setTopics] = useState([]);
+  const [mistakes, setMistakes] = useState([]);
+  const [stats, setStats] = useState({
+    topicsStudied: 0,
+    flashcardsReviewed: 0,
+    quizzesCompleted: 0,
+    averageScore: null,
+    totalStudyMinutes: 0,
+    streakDays: 0
   });
-
-  const [topics, setTopics] = useState(() => {
-    const saved = localStorage.getItem('study_ai_topics');
-    return saved ? JSON.parse(saved) : INITIAL_TOPICS;
-  });
-
-  const [mistakes, setMistakes] = useState(() => {
-    const saved = localStorage.getItem('study_ai_mistakes');
-    return saved ? JSON.parse(saved) : INITIAL_MISTAKES;
-  });
+  const [weeklyActivity, setWeeklyActivity] = useState([
+    { day: 'Mon', hours: 0 },
+    { day: 'Tue', hours: 0 },
+    { day: 'Wed', hours: 0 },
+    { day: 'Thu', hours: 0 },
+    { day: 'Fri', hours: 0 },
+    { day: 'Sat', hours: 0 },
+    { day: 'Sun', hours: 0 }
+  ]);
 
   // Active Study Session Data
-  const [activeTopic, setActiveTopic] = useState(topics[0]);
-  const [activeStudyData, setActiveStudyData] = useState(topics[0]);
+  const [activeTopic, setActiveTopic] = useState(null);
+  const [activeStudyData, setActiveStudyData] = useState(null);
 
   // Assistant Generator Form States
   const [inputContent, setInputContent] = useState('');
@@ -84,33 +81,42 @@ export function App() {
   // Global Toasts Queue
   const [toasts, setToasts] = useState([]);
 
+  // Load isolated user data whenever currentUser changes (Login / Logout / Guest switch)
+  useEffect(() => {
+    const userId = currentUser ? currentUser.id : null;
+    const userData = getUserData(userId);
+
+    setTopics(userData.topics || []);
+    setMistakes(userData.mistakes || []);
+    setStats(userData.stats || {
+      topicsStudied: 0,
+      flashcardsReviewed: 0,
+      quizzesCompleted: 0,
+      averageScore: null,
+      totalStudyMinutes: 0,
+      streakDays: 0
+    });
+    setWeeklyActivity(userData.weeklyActivity || []);
+    setActiveTopic(userData.topics?.[0] || null);
+    setActiveStudyData(userData.topics?.[0] || null);
+  }, [currentUser?.id]);
+
+  // Save isolated data whenever study state updates
+  useEffect(() => {
+    const userId = currentUser ? currentUser.id : null;
+    saveUserData(userId, {
+      topics,
+      mistakes,
+      stats,
+      weeklyActivity
+    });
+  }, [topics, mistakes, stats, weeklyActivity, currentUser?.id]);
+
   // Sync Theme
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('study_ai_theme', theme);
   }, [theme]);
-
-  // Sync User Auth
-  useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('study_ai_user', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('study_ai_user');
-    }
-  }, [currentUser]);
-
-  // Sync Data
-  useEffect(() => {
-    localStorage.setItem('study_ai_stats', JSON.stringify(stats));
-  }, [stats]);
-
-  useEffect(() => {
-    localStorage.setItem('study_ai_topics', JSON.stringify(topics));
-  }, [topics]);
-
-  useEffect(() => {
-    localStorage.setItem('study_ai_mistakes', JSON.stringify(mistakes));
-  }, [mistakes]);
 
   const toggleTheme = () => {
     setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
@@ -147,12 +153,14 @@ export function App() {
   };
 
   const handleLogout = () => {
+    logoutUser();
     setCurrentUser(null);
     showToast('You have been logged out.', 'info');
   };
 
   // Select a Topic to study from list or sidebar
   const handleSelectTopic = (topic) => {
+    if (!topic) return;
     setActiveTopic(topic);
     setActiveStudyData(topic);
     setActiveView('session-overview');
@@ -178,18 +186,18 @@ export function App() {
       }
 
       const newTopic = {
-        id: `topic_${Date.now()}`,
+        id: `topic_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
         title: result.title || 'Custom AI Study Set',
         subtitle: `${result.cards?.length || 0} Flashcards & ${result.questions?.length || 0} Questions`,
         icon: 'BookOpen',
-        category: 'Custom Topic',
+        category: 'Study Set',
         progress: 0,
         lastStudied: 'Just now',
         cardsCount: result.cards?.length || 0,
-        quizScore: 0,
+        quizScore: null,
         difficulty: selectedDifficulty,
-        summary: `AI generated study material covering key principles, flashcard active-recall items, and test questions for ${result.title}.`,
-        concepts: result.questions?.map((q) => q.topic).filter(Boolean).slice(0, 6) || ['Core Fundamentals', 'Key Concepts', 'Application'],
+        summary: `AI generated study material covering key principles, active recall cards, and assessment questions for ${result.title}.`,
+        concepts: result.questions?.map((q) => q.topic).filter(Boolean).slice(0, 6) || ['Core Principles', 'Key Definitions', 'Application'],
         cards: result.cards || [],
         questions: result.questions || []
       };
@@ -197,7 +205,11 @@ export function App() {
       setTopics((prev) => [newTopic, ...prev]);
       setActiveTopic(newTopic);
       setActiveStudyData(newTopic);
-      setStats((prev) => ({ ...prev, topicsStudied: prev.topicsStudied + 1 }));
+      setStats((prev) => ({
+        ...prev,
+        topicsStudied: prev.topicsStudied + 1,
+        streakDays: Math.max(prev.streakDays, 1)
+      }));
 
       showToast('Study material generated successfully!', 'success');
       setActiveView('session-overview');
@@ -217,6 +229,15 @@ export function App() {
 
   // Start Flashcards Viewer
   const handleStartFlashcards = () => {
+    if (!activeStudyData?.cards || activeStudyData.cards.length === 0) {
+      showToast('No flashcards available in this study set.', 'warning');
+      return;
+    }
+    // Increment reviewed cards stat dynamically
+    setStats((prev) => ({
+      ...prev,
+      flashcardsReviewed: prev.flashcardsReviewed + (activeStudyData.cards.length || 0)
+    }));
     setActiveView('flashcards');
   };
 
@@ -274,6 +295,7 @@ export function App() {
 
       const accuracy = Math.round((correct / total) * 100);
 
+      // Append mistakes if not in retest mode
       if (newMistakes.length > 0 && !isRetestMode) {
         setMistakes((prev) => [...newMistakes, ...prev]);
         showToast(`${newMistakes.length} mistakes saved to your Mistakes Hub`, 'info');
@@ -281,15 +303,34 @@ export function App() {
         showToast('Re-test completed! Mastery updated 🎉', 'success');
       }
 
-      setStats((prev) => ({
-        ...prev,
-        quizzesCompleted: prev.quizzesCompleted + 1,
-        averageScore: Math.round((prev.averageScore + accuracy) / 2)
-      }));
+      // Update user statistics dynamically
+      setStats((prev) => {
+        const completed = prev.quizzesCompleted + 1;
+        const newAverage =
+          prev.averageScore !== null
+            ? Math.round((prev.averageScore * prev.quizzesCompleted + accuracy) / completed)
+            : accuracy;
 
+        return {
+          ...prev,
+          quizzesCompleted: completed,
+          averageScore: newAverage,
+          streakDays: Math.max(prev.streakDays, 1)
+        };
+      });
+
+      // Update topic mastery score
       if (activeTopic) {
         setTopics((prev) =>
-          prev.map((t) => (t.id === activeTopic.id ? { ...t, progress: Math.min(100, t.progress + 15), quizScore: accuracy } : t))
+          prev.map((t) =>
+            t.id === activeTopic.id
+              ? {
+                  ...t,
+                  progress: Math.min(100, Math.max(t.progress || 0, accuracy)),
+                  quizScore: accuracy
+                }
+              : t
+          )
         );
       }
 
@@ -333,13 +374,20 @@ export function App() {
     }
   };
 
-  // Reset Sample Data
-  const handleResetSampleData = () => {
-    setStats(INITIAL_STATS);
-    setTopics(INITIAL_TOPICS);
-    setMistakes(INITIAL_MISTAKES);
-    setActiveTopic(INITIAL_TOPICS[0]);
-    setActiveStudyData(INITIAL_TOPICS[0]);
+  // Reset/Clear Current User Study Data
+  const handleResetUserData = () => {
+    setTopics([]);
+    setMistakes([]);
+    setStats({
+      topicsStudied: 0,
+      flashcardsReviewed: 0,
+      quizzesCompleted: 0,
+      averageScore: null,
+      totalStudyMinutes: 0,
+      streakDays: 0
+    });
+    setActiveTopic(null);
+    setActiveStudyData(null);
   };
 
   // Breadcrumb Title Helper
@@ -396,6 +444,7 @@ export function App() {
         recentTopics={topics}
         onSelectTopic={handleSelectTopic}
         mistakesCount={mistakes.length}
+        streakDays={stats.streakDays}
         theme={theme}
         onToggleTheme={toggleTheme}
         isOpen={mobileSidebarOpen}
@@ -426,6 +475,7 @@ export function App() {
           {/* 1. Dashboard View */}
           {activeView === 'dashboard' && (
             <Dashboard
+              currentUser={currentUser}
               stats={stats}
               topics={topics}
               onNewSession={() => setActiveView('assistant')}
@@ -509,7 +559,7 @@ export function App() {
               mistakes={mistakes}
               onStartRetest={handleStartRetest}
               onClearMistakes={() => setMistakes([])}
-              onStartNewQuiz={() => handleStartQuiz()}
+              onStartNewQuiz={() => setActiveView('assistant')}
             />
           )}
 
@@ -518,6 +568,8 @@ export function App() {
             <ProgressView
               stats={stats}
               topics={topics}
+              weeklyActivity={weeklyActivity}
+              onNewSession={() => setActiveView('assistant')}
             />
           )}
 
@@ -526,7 +578,7 @@ export function App() {
             <SettingsView
               theme={theme}
               onToggleTheme={toggleTheme}
-              onResetSampleData={handleResetSampleData}
+              onResetSampleData={handleResetUserData}
               onShowToast={showToast}
               currentUser={currentUser}
               onOpenAuth={handleOpenAuth}

@@ -6,15 +6,59 @@ import {
   Layers,
   HelpCircle,
   TrendingUp,
-  Calendar,
-  CheckCircle2,
   Clock,
-  Sparkles
+  Sparkles,
+  ArrowRight
 } from 'lucide-react';
-import { WEEKLY_ACTIVITY } from '../data/mockData';
 
-export function ProgressView({ stats, topics = [] }) {
-  const maxWeeklyHours = Math.max(...WEEKLY_ACTIVITY.map((d) => d.hours));
+export function ProgressView({
+  stats,
+  topics = [],
+  weeklyActivity = [],
+  onNewSession
+}) {
+  const hasActivity = topics.length > 0 || stats.quizzesCompleted > 0 || stats.flashcardsReviewed > 0;
+  const streak = stats.streakDays || (stats.quizzesCompleted > 0 ? 1 : 0);
+  const totalHours = weeklyActivity.reduce((acc, curr) => acc + (curr.hours || 0), 0);
+  const maxWeeklyHours = Math.max(...weeklyActivity.map((d) => d.hours || 0), 1);
+
+  if (!hasActivity) {
+    return (
+      <div className="progress-view-root">
+        <div className="progress-header-banner">
+          <div>
+            <div className="progress-badge">
+              <TrendingUp size={14} />
+              <span>Learning Analytics</span>
+            </div>
+            <h1 className="progress-title">Your Study Progress</h1>
+            <p className="progress-sub">
+              Track your consistency, topic mastery levels, and weekly focus metrics.
+            </p>
+          </div>
+        </div>
+
+        {/* Empty State Banner */}
+        <div className="empty-mistakes-card" style={{ marginTop: '1.5rem' }}>
+          <div className="empty-icon-box" style={{ background: 'var(--primary-light)', color: 'var(--primary)' }}>
+            <TrendingUp size={44} />
+          </div>
+          <h2 className="empty-title">No learning activity yet</h2>
+          <p className="empty-sub">
+            Generate your first study set, flip through flashcards, and take quizzes to populate your personal study analytics.
+          </p>
+          <button
+            className="btn-hero-primary"
+            onClick={onNewSession}
+            style={{ width: 'auto', margin: '1.5rem auto 0' }}
+          >
+            <Sparkles size={18} />
+            <span>Start Your First Study Session</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="progress-view-root">
@@ -42,9 +86,11 @@ export function ProgressView({ stats, topics = [] }) {
             </div>
             <span className="streak-status-tag">Active Streak</span>
           </div>
-          <div className="streak-days-count">7 Days</div>
+          <div className="streak-days-count">{streak} {streak === 1 ? 'Day' : 'Days'}</div>
           <p className="streak-message">
-            You've studied 7 days in a row! Personal record is <strong>12 days</strong>.
+            {streak > 0
+              ? `You've studied ${streak} ${streak === 1 ? 'day' : 'days'} in a row! Keep up the momentum.`
+              : 'Complete a study session today to start your streak!'}
           </p>
         </div>
 
@@ -52,11 +98,11 @@ export function ProgressView({ stats, topics = [] }) {
         <div className="analytics-summary-box">
           <div className="summary-metric-item">
             <div className="metric-icon-bg primary">
-              <Clock size={18} />
+              <BookOpen size={18} />
             </div>
             <div>
-              <div className="metric-num">23.8 hrs</div>
-              <div className="metric-label">Total Study Time</div>
+              <div className="metric-num">{stats.topicsStudied}</div>
+              <div className="metric-label">Topics Studied</div>
             </div>
           </div>
 
@@ -65,7 +111,11 @@ export function ProgressView({ stats, topics = [] }) {
               <Award size={18} />
             </div>
             <div>
-              <div className="metric-num">{stats.averageScore}%</div>
+              <div className="metric-num">
+                {stats.quizzesCompleted > 0 && stats.averageScore !== null
+                  ? `${stats.averageScore}%`
+                  : '—'}
+              </div>
               <div className="metric-label">Average Accuracy</div>
             </div>
           </div>
@@ -90,25 +140,24 @@ export function ProgressView({ stats, topics = [] }) {
             <p className="card-heading-sub">Daily hours logged across flashcards and quizzes</p>
           </div>
           <div className="weekly-total-tag">
-            <span>Total: <strong>23.9 hrs</strong> this week</span>
+            <span>Total: <strong>{totalHours.toFixed(1)} hrs</strong> this week</span>
           </div>
         </div>
 
         <div className="weekly-chart-grid">
-          {WEEKLY_ACTIVITY.map((item, idx) => {
-            const barHeightPct = Math.round((item.hours / maxWeeklyHours) * 100);
-            const isToday = item.day === 'Wed';
+          {weeklyActivity.map((item, idx) => {
+            const barHeightPct = Math.round(((item.hours || 0) / maxWeeklyHours) * 100);
 
             return (
               <div key={idx} className="chart-bar-column">
-                <div className="bar-tooltip">{item.hours}h</div>
+                <div className="bar-tooltip">{item.hours || 0}h</div>
                 <div className="bar-track">
                   <div
-                    className={`bar-fill ${isToday ? 'today' : ''}`}
-                    style={{ height: `${barHeightPct}%` }}
+                    className="bar-fill"
+                    style={{ height: `${Math.max(barHeightPct, 4)}%` }}
                   />
                 </div>
-                <span className={`bar-day-label ${isToday ? 'active' : ''}`}>{item.day}</span>
+                <span className="bar-day-label">{item.day}</span>
               </div>
             );
           })}
@@ -116,32 +165,34 @@ export function ProgressView({ stats, topics = [] }) {
       </div>
 
       {/* Topic Mastery Breakdown */}
-      <div className="topic-mastery-card">
-        <h3 className="card-heading-title" style={{ marginBottom: '1.25rem' }}>
-          Topic Mastery Levels
-        </h3>
+      {topics.length > 0 && (
+        <div className="topic-mastery-card">
+          <h3 className="card-heading-title" style={{ marginBottom: '1.25rem' }}>
+            Topic Mastery Levels
+          </h3>
 
-        <div className="mastery-list">
-          {topics.map((t) => (
-            <div key={t.id} className="mastery-item-row">
-              <div className="mastery-item-info">
-                <div className="mastery-item-title">{t.title}</div>
-                <div className="mastery-item-sub">{t.subtitle}</div>
-              </div>
-
-              <div className="mastery-item-bar-wrap">
-                <div className="mastery-bar-track">
-                  <div
-                    className="mastery-bar-fill"
-                    style={{ width: `${t.progress}%` }}
-                  />
+          <div className="mastery-list">
+            {topics.map((t) => (
+              <div key={t.id} className="mastery-item-row">
+                <div className="mastery-item-info">
+                  <div className="mastery-item-title">{t.title}</div>
+                  <div className="mastery-item-sub">{t.subtitle || `${t.cards?.length || 0} Flashcards`}</div>
                 </div>
-                <span className="mastery-item-pct">{t.progress}%</span>
+
+                <div className="mastery-item-bar-wrap">
+                  <div className="mastery-bar-track">
+                    <div
+                      className="mastery-bar-fill"
+                      style={{ width: `${t.progress || 0}%` }}
+                    />
+                  </div>
+                  <span className="mastery-item-pct">{t.progress || 0}%</span>
+                </div>
               </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

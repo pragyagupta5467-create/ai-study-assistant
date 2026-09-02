@@ -9,23 +9,29 @@ import {
   Award,
   ArrowRight,
   Play,
-  RotateCcw,
   CheckCircle2,
-  Cpu
+  Plus
 } from 'lucide-react';
 
 export function Dashboard({
+  currentUser,
   stats,
-  topics,
+  topics = [],
   onNewSession,
   onSelectTopic,
   onContinueLearning
 }) {
-  const currentTopic = topics[0] || {
-    title: 'Operating Systems',
-    subtitle: 'Process Management & Concurrency',
-    progress: 68
-  };
+  const currentTopic = topics.length > 0 ? topics[0] : null;
+  const hasTopics = topics.length > 0;
+
+  // Format greeting
+  const greetingName = currentUser?.name ? `, ${currentUser.name}` : '';
+
+  // Format average score (display dash '—' when 0 quizzes)
+  const averageScoreDisplay =
+    stats.quizzesCompleted > 0 && stats.averageScore !== null
+      ? `${stats.averageScore}%`
+      : '—';
 
   return (
     <div className="dashboard-view-root">
@@ -37,10 +43,10 @@ export function Dashboard({
             <span>AI Learning Platform</span>
           </div>
           <h1 className="hero-greeting-title">
-            Good evening, Pragya <span className="wave-hand">👋</span>
+            Good evening{greetingName} <span className="wave-hand">👋</span>
           </h1>
           <p className="hero-greeting-sub">
-            Ready to turn your study time into progress? Generate a new study set from your lecture notes or pick up where you left off.
+            Ready to turn your study time into progress? Generate a new study set from your notes or pick up where you left off.
           </p>
 
           <div className="hero-actions-row">
@@ -52,121 +58,149 @@ export function Dashboard({
               <span>+ New Study Session</span>
             </button>
 
-            <button
-              className="btn-hero-secondary"
-              onClick={() => onSelectTopic(currentTopic)}
-            >
-              <Play size={16} />
-              <span>Continue Learning</span>
-            </button>
+            {hasTopics && (
+              <button
+                className="btn-hero-secondary"
+                onClick={() => onSelectTopic(currentTopic)}
+              >
+                <Play size={16} />
+                <span>Continue Learning</span>
+              </button>
+            )}
           </div>
         </div>
 
         <div className="hero-decorative-orb" />
       </section>
 
-      {/* 4 Key Statistics Cards */}
+      {/* 4 Key Dynamic Statistics Cards */}
       <section className="dashboard-stats-grid">
         <StatCard
           label="Topics Studied"
           value={stats.topicsStudied}
-          subtext="4 subjects active"
+          subtext={hasTopics ? `${stats.topicsStudied} active sets` : 'No study sets yet'}
           icon={BookOpen}
           color="var(--primary)"
-          trend="+2 this week"
         />
         <StatCard
           label="Flashcards Reviewed"
           value={stats.flashcardsReviewed}
-          subtext="88% retention rate"
+          subtext={stats.flashcardsReviewed > 0 ? 'Cards reviewed' : 'Start reviewing cards'}
           icon={Layers}
           color="var(--secondary)"
-          trend="+42 today"
         />
         <StatCard
           label="Quizzes Completed"
           value={stats.quizzesCompleted}
-          subtext="3 re-tests passed"
+          subtext={stats.quizzesCompleted > 0 ? 'Assessments taken' : 'Take your first quiz'}
           icon={HelpCircle}
           color="var(--success)"
-          trend="+4 this week"
         />
         <StatCard
           label="Average Score"
-          value={`${stats.averageScore}%`}
-          subtext="Top 10% mastery"
+          value={averageScoreDisplay}
+          subtext={stats.quizzesCompleted > 0 ? 'Overall accuracy' : 'No quiz attempts yet'}
           icon={Award}
           color="#f59e0b"
-          trend="+6% vs last month"
         />
       </section>
 
-      {/* Continue Learning Large Card */}
+      {/* Continue Learning Section (Dynamic or Clean Zero-State) */}
       <section className="continue-learning-section">
-        <div className="continue-card">
-          <div className="continue-card-left">
-            <div className="continue-badge">
-              <span className="pulse-dot" />
-              <span>Continue where you left off</span>
-            </div>
-            <h2 className="continue-topic-title">{currentTopic.title}</h2>
-            <p className="continue-topic-sub">
-              {currentTopic.subtitle || 'Process Management & Synchronization algorithms'}
-            </p>
+        {hasTopics ? (
+          <div className="continue-card">
+            <div className="continue-card-left">
+              <div className="continue-badge">
+                <span className="pulse-dot" />
+                <span>Continue where you left off</span>
+              </div>
+              <h2 className="continue-topic-title">{currentTopic.title}</h2>
+              <p className="continue-topic-sub">
+                {currentTopic.subtitle || 'Active study session'}
+              </p>
 
-            <div className="continue-meta-tags">
-              <span className="continue-meta-pill">
-                <CheckCircle2 size={13} /> Active Session
-              </span>
-              <span className="continue-meta-pill">
-                <Layers size={13} /> {currentTopic.cardsCount || 10} Flashcards
-              </span>
-            </div>
-          </div>
-
-          <div className="continue-card-right">
-            {/* Circular Progress Gauge */}
-            <div className="circular-progress-wrap">
-              <svg className="circular-progress-svg" viewBox="0 0 100 100">
-                <circle
-                  className="circle-bg"
-                  cx="50"
-                  cy="50"
-                  r="42"
-                />
-                <circle
-                  className="circle-fill"
-                  cx="50"
-                  cy="50"
-                  r="42"
-                  style={{
-                    strokeDashoffset: 264 - (264 * (currentTopic.progress || 68)) / 100
-                  }}
-                />
-              </svg>
-              <div className="circle-inner-content">
-                <span className="circle-pct">{currentTopic.progress || 68}%</span>
-                <span className="circle-lbl">Done</span>
+              <div className="continue-meta-tags">
+                <span className="continue-meta-pill">
+                  <CheckCircle2 size={13} /> Active Session
+                </span>
+                <span className="continue-meta-pill">
+                  <Layers size={13} /> {currentTopic.cardsCount || currentTopic.cards?.length || 0} Flashcards
+                </span>
               </div>
             </div>
 
-            <button
-              className="btn-continue-action"
-              onClick={() => onSelectTopic(currentTopic)}
-            >
-              <span>Continue</span>
-              <ArrowRight size={16} />
-            </button>
+            <div className="continue-card-right">
+              {/* Circular Progress Gauge */}
+              <div className="circular-progress-wrap">
+                <svg className="circular-progress-svg" viewBox="0 0 100 100">
+                  <circle
+                    className="circle-bg"
+                    cx="50"
+                    cy="50"
+                    r="42"
+                  />
+                  <circle
+                    className="circle-fill"
+                    cx="50"
+                    cy="50"
+                    r="42"
+                    style={{
+                      strokeDashoffset: 264 - (264 * (currentTopic.progress || 0)) / 100
+                    }}
+                  />
+                </svg>
+                <div className="circle-inner-content">
+                  <span className="circle-pct">{currentTopic.progress || 0}%</span>
+                  <span className="circle-lbl">Done</span>
+                </div>
+              </div>
+
+              <button
+                className="btn-continue-action"
+                onClick={() => onSelectTopic(currentTopic)}
+              >
+                <span>Continue</span>
+                <ArrowRight size={16} />
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="continue-card start-first-card">
+            <div className="continue-card-left">
+              <div className="continue-badge" style={{ color: 'var(--primary)' }}>
+                <Sparkles size={14} />
+                <span>Start your first study session</span>
+              </div>
+              <h2 className="continue-topic-title">No active study sessions yet</h2>
+              <p className="continue-topic-sub">
+                Paste your lecture notes or enter any topic to generate structured flashcards and quizzes instantly with AI.
+              </p>
+            </div>
+
+            <div className="continue-card-right">
+              <button
+                className="btn-hero-primary"
+                onClick={onNewSession}
+                style={{ width: 'auto', padding: '0.85rem 1.75rem' }}
+              >
+                <span>Start Studying</span>
+                <ArrowRight size={16} />
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
-      {/* Recent Topics Grid */}
+      {/* Recent Topics Section */}
       <section className="recent-topics-section">
         <div className="section-header-row">
           <div>
             <h2 className="section-title">Recent Study Topics</h2>
-            <p className="section-sub">Select any study deck to review flashcards or take an assessment.</p>
+            <p className="section-sub">
+              {hasTopics
+                ? 'Select any study deck to review flashcards or take an assessment.'
+                : 'Your generated study materials will appear here.'}
+            </p>
           </div>
 
           <button
@@ -177,15 +211,35 @@ export function Dashboard({
           </button>
         </div>
 
-        <div className="topics-grid">
-          {topics.map((topic) => (
-            <TopicCard
-              key={topic.id}
-              topic={topic}
-              onSelect={onSelectTopic}
-            />
-          ))}
-        </div>
+        {hasTopics ? (
+          <div className="topics-grid">
+            {topics.map((topic) => (
+              <TopicCard
+                key={topic.id}
+                topic={topic}
+                onSelect={onSelectTopic}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="empty-topics-banner">
+            <div className="empty-topics-icon">
+              <BookOpen size={36} />
+            </div>
+            <h3 className="empty-topics-title">No study sessions yet</h3>
+            <p className="empty-topics-sub">
+              Click "+ New Study Session" above to create your first set of AI flashcards and quizzes.
+            </p>
+            <button
+              className="btn-hero-secondary"
+              onClick={onNewSession}
+              style={{ marginTop: '1rem' }}
+            >
+              <Plus size={16} />
+              <span>Create First Study Set</span>
+            </button>
+          </div>
+        )}
       </section>
     </div>
   );
