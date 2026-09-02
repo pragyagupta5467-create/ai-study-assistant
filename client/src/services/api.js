@@ -57,7 +57,10 @@ export async function generateStudyMaterial(content, mode, difficulty = 'medium'
   }, 35000);
 
   try {
-    const response = await fetch('/api/generate', {
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+    const endpoint = apiBaseUrl ? `${apiBaseUrl}/api/generate` : '/api/generate';
+
+    const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
